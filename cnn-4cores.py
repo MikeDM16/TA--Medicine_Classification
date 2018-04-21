@@ -74,6 +74,12 @@ def load_cfar10_dataset():
 	if K.image_data_format() == 'channels_last': 
 		x_train = x_train.transpose(0, 2, 3, 1) 
 		x_test = x_test.transpose(0, 2, 3, 1) 
+
+	print("shape X_train" + str(x_train.shape))
+	print("shape X_teste" + str(x_test.shape))
+	print("shape y_train" + str(y_train.shape))
+	print("shape y_teste" + str(y_test.shape))
+
 	return (x_train, y_train), (x_test, y_test)
 
 def visualize_cifar10(): 
@@ -123,7 +129,7 @@ def create_compile_model_cnn_cifar10_simples(num_classes,epochs):
 	decay = lrate/epochs 
 	sgd = SGD(lr=lrate, momentum=0.9, decay=decay, nesterov=False) 
 	model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy']) 
-	return mode
+	return model
 
 # Etapa 2 - Definir a topologia da rede (arquitectura do modelo) e compilar
 def create_compile_model_cnn_cifar10_plus(num_classes,epochs):
@@ -155,22 +161,23 @@ def create_compile_model_cnn_cifar10_plus(num_classes,epochs):
 	return model 
 
 def cfar10_utilizando_cnn_simples(): 
-	(X_train, y_train), (X_test, y_test) = cifar10.load_data() 
-	#(X_train, y_train), (X_test, y_test) = load_cfar10_dataset() 
+	#(X_train, y_train), (X_test, y_test) = cifar10.load_data() 
+	(X_train, y_train), (X_test, y_test) = load_cfar10_dataset() 
 	# normalize inputs from 0-255 to 0.0-1.0 
 	X_train = X_train.astype('float32') #converter de inteiro para real 
 	X_test = X_test.astype('float32') 
 	X_train = X_train / 255.0 
 	X_test = X_test / 255.0 
+
 	# transformar o label que é um inteiro em categorias binárias, o valor passa a ser o  correspondente à posição 
 	# a classe 5 passa a ser a lista [0. 0. 0. 0. 0. 1. 0. 0. 0. 0.] 
 	y_train = np_utils.to_categorical(y_train) 
 	y_test = np_utils.to_categorical(y_test) 
 	num_classes = y_test.shape[1] 
-	epochs = 5 #25 
+	epochs = 1 #25 
 	model = create_compile_model_cnn_cifar10_simples(num_classes,epochs) 
 	print(model.summary()) 
-	
+
 	#print_model(model,"cifar10_simples.png") 
 	
 	# treino do modelo: epochs=5, batch size = 32 
@@ -216,5 +223,5 @@ def cfar10_utilizando_cnn_plus():
 
 if __name__ == '__main__': 
 	#visualize_cifar10() 
-	#cfar10_utilizando_cnn_simples() 
-	cfar10_utilizando_cnn_plus()
+	cfar10_utilizando_cnn_simples() 
+	#cfar10_utilizando_cnn_plus()

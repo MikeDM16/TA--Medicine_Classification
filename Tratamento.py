@@ -5,7 +5,6 @@ from scipy.misc import toimage
 from PIL import Image, ImageColor, ImageTk
 
 class Tratamento():
-
 	def tratamento_classes(self, file_name, path_dref, path_dc):
 			
 		def load_dados(file_name, path_dref, path_dc):
@@ -15,24 +14,20 @@ class Tratamento():
 			# Aumentar os casos de treino com as imagens de referência
 			M_data = self.adicionar_imgs_ref(path_dref, path_dc, M_data)
 
+			# Matriz com o mapeamento entre o nome das cápsulas e um id da classe atribuido
+			ref_classes = self.create_ids_classes(path_dref)
+
+			M_data = self.troca_nomes_ids(ref_classes, M_data)
+			M_data = M_data[1:len(M_data)]
 			return M_data
 
 		# Executar isto só 1 vez. Tendo as imagens preparadas não há necessidade de repetir isto
-		# M_data = load_dados(file_name, path_dref, path_dc)
-		M_data = self.read_csv_file("all_images.csv")
-
-		# Matriz com o mapeamento entre o nome das cápsulas e um id da classe atribuido
-		ref_classes = self.create_ids_classes(path_dref)
-
+		#M_data = load_dados(file_name, path_dref, path_dc)
+		M_data = self.read_csv_file("Dados_final.csv")
+		
 		return M_data
+	# -------------------------------------------------------------------------------------------
 
-
-		process = psutil.Process(os.getpid())
-		memoryUse = process.memory_info()[0]/2.**20  # memory use in GB...I think
-		print("Images load: " + str(len(M_imgs)) + " Train samples, " + str(len(M_target)) + " Target samples.")
-		print('Memory use: ' +  str(round(memoryUse, 2)) + " MB.")
-		print("Time to load images: " + str( round((time.time() - start_time)/60, 2)) + " minutes")
-	
 	# -------------------------------------------------------------------------------------------
 	# Cada imagem de referência (target) será adicionada ao folder DC 
 	def adicionar_imgs_ref(self, path_dref, path_dc, M_data):
@@ -69,13 +64,13 @@ class Tratamento():
 			i += 2;
 			nome += 2; 
 
-		self.save_csv(M_data, "all_images.csv")
-
+		#self.save_csv(M_data, "all_images.csv")
 		return M_data
-
 	# -------------------------------------------------------------------------------------------
-	''' Dado o ficheiro csv com os dados em bruto, troca a string de cada imagem de referência
-	pelo indice numérico que lhe foi atribuido ''' 
+	
+	# -------------------------------------------------------------------------------------------
+	#  Dado o ficheiro csv com os dados em bruto, troca a string de cada imagem de referência
+	# pelo indice numérico que lhe foi atribuido 
 	def troca_nomes_ids(self, ref_classes, M_data):
 		ref_names	= []
 		classes 	= []
@@ -87,7 +82,9 @@ class Tratamento():
 			index = ref_names.index(M_data[row][0])
 			M_data[row][0] = classes[index]
 
-		self.save_csv(M_data, "Limpo.csv")
+		self.save_csv(M_data, "Dados_final.csv")
+		return M_data
+	# -------------------------------------------------------------------------------------------
 
 	# -------------------------------------------------------------------------------------------
 	''' Função para atribuir ids entre [1, 1000] às imagens de referência. 
@@ -107,7 +104,7 @@ class Tratamento():
 		# Trocar o nome das classes de referência por um valor entre [0, N_Classes]
 		classe = 1; i=0;
 		ref_classes	= []
-		ref_classes.append(["Reference Name", "classe"])
+		#ref_classes.append(["Reference Name", "classe"])
 		while(i < len(files)-1):
 			ref_classes.append([files[i], classe])
 			ref_classes.append([files[i+1], classe])
@@ -118,9 +115,10 @@ class Tratamento():
 		self.save_csv(ref_classes, "classes_ref-names.csv")
 		
 		return ref_classes; 
-	
 	# -------------------------------------------------------------------------------------------
-	''' função para ler um csv '''
+
+	# -------------------------------------------------------------------------------------------
+	# Função para ler um csv 
 	def read_csv_file(self, file_name):
 		# Abrir ficheiro CSV
 		f = open(file_name, encoding='utf8', mode="r")
@@ -141,9 +139,10 @@ class Tratamento():
 		nrows = len(M_data)
 
 		return(M_data)
+	# -------------------------------------------------------------------------------------------
 
 	# -------------------------------------------------------------------------------------------
-	''' função para guardar um csv '''
+	# Função para guardar um csv 
 	def save_csv(self, M_data, file_name):
 		with open(file_name, "w+", newline='', encoding='utf-8') as f:
 			writer = csv.writer(f, delimiter=",")
@@ -155,6 +154,5 @@ class Tratamento():
 						falhou += 1
 						f.close()
 			print("Save " + file_name + " terminado. Falhou " + str(falhou) + " linhas.")
-	
 	# -------------------------------------------------------------------------------------------
 	
