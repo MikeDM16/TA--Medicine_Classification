@@ -61,8 +61,8 @@ class Tratamento():
 			M_data.append([ref_imgs[i], new_file_name])
 			M_data.append([ref_imgs[i+1], new_file_name])
 
-			i += 2;
-			nome += 2; 
+			i += 2
+			nome += 2
 
 		#self.save_csv(M_data, "all_images.csv")
 		return M_data

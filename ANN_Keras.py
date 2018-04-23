@@ -15,7 +15,7 @@ K.set_image_dim_ordering('th') #pode ser 'th' ou 'tf'
 import matplotlib.pyplot as plt
 from scipy.misc import toimage
 
-import csv, os, psutil, time, random
+import csv, os, psutil, time, random, sys
 from matplotlib import pylab
 from scipy.misc import toimage
 from PIL import Image, ImageColor, ImageTk
@@ -28,8 +28,9 @@ np.random.seed(seed)
 class ANN_Keras():
 	def __init__(self, path_dref, path_dc, M_data):
 		self.num_classes = 1000  # número de classes
-		self.dims = 32 # dimensão das imagens apos tratamento 
+		self.dims = 50 # dimensão das imagens apos tratamento 
 
+		# M_data = M_data[0:5000]
 		model = self.treino_progressivo(path_dref, path_dc, M_data)
 		self.save_ANN_model(model)
 		
@@ -46,35 +47,44 @@ class ANN_Keras():
 		model = self.create_compile_model_cnn_simples(num_classes,epochs) 
 		print(model.summary()) 
 
-		bloco = 10 # Treinar com bloco de N imagens por fase de treino 
+		bloco = 14000 # Treinar com bloco de N imagens por fase de treino 
 		div = int(len(M_data)/bloco) # quantas vezes é possivel partir o dataset em blocos
 		for it in range(0, div):
 			# if(it==0):	start = 1 # saltar 1º linha com nome colunas 
 			start = it*bloco
 			end = start + bloco 
+			if(it == div-1): end = len(M_data)
 			
-			M_imgs, M_target = self.create_ANN_input(path_dc, start, end, M_data)
+			M_imgs, M_target = self.create_ANN_input(path_dc, M_data[start:end])
 			
 			print("--- Fase de Treino " + str(it+1) + " ---")
 			start_time = time.time()
 			self.cnn_simples(model, epochs, M_imgs, M_target)
 			
 			process = psutil.Process(os.getpid())
-			memoryUse = process.memory_info()[0]/2.**20  # memory use in GB...I think
-			print("Images load: " + str(len(M_imgs)) + " Train samples.")
+			memoryUse = process.memory_info()[0]/2.**20  # memory use in GB...
 			print('Memory at use: ' +  str(round(memoryUse, 2)) + " MB.")
 			print("Tempo da Fase de Treino " + str(it+1) + ": " + str( round((time.time() - start_time)/60, 2)) + " minutes")
 			print("-------------------------")
 
 		return model
 	# -------------------------------------------------------------------------------------------
-	
+	def progress(self, count, total, status=''):
+		bar_len = 50
+		filled_len = int(round(bar_len * count / float(total)))
+
+		percents = round(100.0 * count / float(total), 1)
+		bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+		sys.stdout.write('[%s] %s%s    %s\r' % (bar, percents, '%', status))
+		sys.stdout.flush() 
+
 	# -------------------------------------------------------------------------------------------
 	def avaliacao(self, model, path_dc, M_data):
 		# Shuffle the data randomly (keras already allows this doe)
 		random.shuffle(M_data)
 		p = int(len(M_data)*2/3)
-		M_imgs, M_target = self.create_ANN_input(path_dc, 0, p, M_data)
+		M_imgs, M_target = self.create_ANN_input(path_dc, M_data[0:p])
 
 		X_test = M_imgs
 		y_test = keras.utils.to_categorical(M_target, self.num_classes)
@@ -109,26 +119,47 @@ class ANN_Keras():
 	# -------------------------------------------------------------------------------------------
 
 	# -------------------------------------------------------------------------------------------
-	def create_ANN_input(self, path_dc, start, end, M_data):
-		# construir conjuntos de treino e teste graduais 
-		M_imgs = []  # Valores para realizar a aprendizagem
-		M_target = [] # classe target esperada 
+	def create_ANN_input(self, path_dc, M_data):
+		start_time = time.time()
 
+		# construir conjuntos de treino e teste graduais 
+		# M_imgs =  Valores para realizar a aprendizagem
+		# M_target =  classe target esperada 
+		d1 = len(M_data)
+		dims = self.dims
+
+		M_imgs = np.zeros((d1, 3, dims, dims), dtype='uint8')
+		M_target = np.zeros((d1,), dtype='uint8')
+		
 		# Load das imagens efetivamente para memória, na forma de matriz e 
 		# com resize, para ocupar menos memória 
-		for row in range(start, end): 
+		for row in range(0, len(M_data)): 
 			''' Imagem de treino no folder ./dc '''
 			img_sample = self.load_img(path_dc, M_data[row][1])
-			M_imgs.append(img_sample);
+			M_imgs[row] = (img_sample) 
+
 			#''' Imagem de referência no folder ./dr '''
 			# img_target = load_img(path_dref, M_data[row][0])
 			#M_target.append(img_target);
-				
-			M_target.append(M_data[row][0])
+			
+			M_target[row]= (M_data[row][0])
+			self.progress(row, len(M_data), "Loading " + str(len(M_data)) + " images.")
 		
-		M_imgs = np.asarray(M_imgs)
-		M_target = np.asarray(M_target)
+		M_target = np.reshape(M_target, (len(M_target), 1))
+		if K.image_data_format() == 'channels_last': 
+			M_imgs = M_imgs.transpose(0,2,3,1)
 
+		M_imgs = M_imgs.astype('float32')
+		M_target = M_target.astype('float32')
+		M_imgs = M_imgs / 255.0
+		M_target = M_target / 255.0
+
+		process = psutil.Process(os.getpid())
+		memoryUse = process.memory_info()[0]/2.**20  # memory use in GB...I think
+		print("\nImages loaded: " + str(len(M_imgs)) + ".")
+		print('Memory at use: ' +  str(round(memoryUse, 2)) + " MB.")
+		print("Tempo Load imagens: " + str( round((time.time() - start_time)/60, 2)) + " minutes")
+		print("-------------------------\n")
 		return(M_imgs, M_target)
 	# -------------------------------------------------------------------------------------------
 	
@@ -138,11 +169,12 @@ class ANN_Keras():
 		X_train = train
 		y_train =  keras.utils.to_categorical(test, self.num_classes)
 	
-		history=model.fit(X_train, y_train, 
-							validation_data=0, 
+		history = model.fit(X_train, y_train, 
+							validation_split=0.33, 
 							epochs=epochs, 
-							batch_size=32, 
+							batch_size=100, 
 							verbose=1)
+		
 		#self.print_history_accuracy(history)
 	# -------------------------------------------------------------------------------------------
 
@@ -169,17 +201,17 @@ class ANN_Keras():
 		dims = self.dims
 
 		model = Sequential() 
-		model.add(Conv2D(20, (3, 3), input_shape=(3, dims, dims), padding='same', activation='relu', kernel_constraint=maxnorm(3))) 
+		model.add(Conv2D(100, (3, 3), input_shape=(3, dims, dims), padding='same', activation='relu', kernel_constraint=maxnorm(3))) 
 		model.add(Dropout(0.2)) 
-		model.add(Conv2D(32, (3, 3), activation='relu', padding='same', kernel_constraint=maxnorm(3))) 
+		model.add(Conv2D(100, (3, 3), activation='relu', padding='same', kernel_constraint=maxnorm(1000))) 
 		model.add(MaxPooling2D(pool_size=(2, 2))) 
 		model.add(Flatten()) 
-		model.add(Dense(164, activation='relu', kernel_constraint=maxnorm(3))) 
+		model.add(Dense(164, activation='relu', kernel_constraint=maxnorm(1000))) 
 		model.add(Dropout(0.5)) 
 		model.add(Dense(num_classes, activation='softmax')) 
 		
 		# Compile model 
-		lrate = 0.01 
+		lrate = 0.1 
 		decay = lrate/epochs 
 		sgd = SGD(lr=lrate, momentum=0.9, decay=decay, nesterov=False) 
 		model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy']) 
@@ -253,9 +285,11 @@ class ANN_Keras():
 		img = Image.open(path + str(file))
 		s = self.dims
 		img = resizeimage.resize_cover(img, [s, s]) # resize
-		img = img.convert("RGB")
-		img = np.asarray(img, dtype=np.float32) / 255
-		img =  img[:,:,:3]
-		img = img.transpose(2,0,1)
+		#img = img.convert("RGB")
+		img = np.asarray(img) #, dtype=np.float32) / 255
+		img = img.reshape(3, s, s) 
+		#img =  img[:,:,:3]
+		#img = img.transpose(2,0,1)
+
 		return img
 	# -------------------------------------------------------------------------------------------
