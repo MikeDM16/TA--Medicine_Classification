@@ -15,7 +15,7 @@ K.set_image_dim_ordering('th') #pode ser 'th' ou 'tf'
 import matplotlib.pyplot as plt
 from scipy.misc import toimage
 
-import csv, os, psutil, time, random, sys
+import csv, os, psutil, time, random, sys, cv2
 from matplotlib import pylab
 from scipy.misc import toimage
 from PIL import Image, ImageColor, ImageTk
@@ -30,24 +30,34 @@ class ANN_Keras():
 		self.num_classes = 1000  # número de classes
 		self.dims = 50 # dimensão das imagens apos tratamento 
 
-		# M_data = M_data[0:5000]
-		model = self.treino_progressivo(path_dref, path_dc, M_data)
-		self.save_ANN_model(model)
-		
-		self.avaliacao(model, path_dc, M_data)
+		#M_data = M_data[0:5000]
+		M_dc = M_data[0:10000]
+		M_ref = M_data[10000:len(M_data)]
 
-	# -------------------------------------------------------------------------------------------
-	def treino_progressivo(self, path_dref, path_dc, M_data):
 		# Shuffle the data randomly (keras already allows this doe)
 		random.shuffle(M_data)
 
+		M_treino = M_data # train whit all images
+
+		random.shuffle(M_dc)
+		p = int(len(M_dc)*1/3)
+		M_teste = M_dc[0:p] # test only whit 1/3 of DC images
+
+		model = self.treino_progressivo(path_dref, path_dc, M_treino)
+		self.save_ANN_model(model)
+		
+		self.avaliacao(model, path_dc, M_teste)
+
+	# -------------------------------------------------------------------------------------------
+	def treino_progressivo(self, path_dref, path_dc, M_data):
+		
 		# criar uma topologia da rede 
 		num_classes = self.num_classes
 		epochs = 3 #25 
-		model = self.create_compile_model_cnn_simples(num_classes,epochs) 
+		model = self.create_compile_model_cnn_plus(num_classes,epochs) 
 		print(model.summary()) 
 
-		bloco = 14000 # Treinar com bloco de N imagens por fase de treino 
+		bloco = len(M_data) # Treinar com bloco de N imagens por fase de treino 
 		div = int(len(M_data)/bloco) # quantas vezes é possivel partir o dataset em blocos
 		for it in range(0, div):
 			# if(it==0):	start = 1 # saltar 1º linha com nome colunas 
@@ -81,10 +91,8 @@ class ANN_Keras():
 
 	# -------------------------------------------------------------------------------------------
 	def avaliacao(self, model, path_dc, M_data):
-		# Shuffle the data randomly (keras already allows this doe)
-		random.shuffle(M_data)
-		p = int(len(M_data)*2/3)
-		M_imgs, M_target = self.create_ANN_input(path_dc, M_data[0:p])
+	
+		M_imgs, M_target = self.create_ANN_input(path_dc, M_data)
 
 		X_test = M_imgs
 		y_test = keras.utils.to_categorical(M_target, self.num_classes)
@@ -170,7 +178,7 @@ class ANN_Keras():
 		y_train =  keras.utils.to_categorical(test, self.num_classes)
 	
 		history = model.fit(X_train, y_train, 
-							validation_split=0.33, 
+							validation_split=0, 
 							epochs=epochs, 
 							batch_size=100, 
 							verbose=1)
@@ -218,7 +226,36 @@ class ANN_Keras():
 		
 		return model
 	# -------------------------------------------------------------------------------------------
+	def create_compile_model_cnn_plus(self, num_classes,epochs):
+		dims = self.dims
 
+		model = Sequential() 
+		model.add(Conv2D(32, (3, 3), input_shape=(3, dims, dims), activation='relu', padding='same')) 
+		model.add(Dropout(0.2)) 
+		model.add(Conv2D(32, (3, 3), activation='relu', padding='same')) 
+		model.add(MaxPooling2D(pool_size=(2, 2))) 
+		model.add(Conv2D(64, (3, 3), activation='relu', padding='same')) 
+		model.add(Dropout(0.2)) 
+		model.add(Conv2D(64, (3, 3), activation='relu', padding='same')) 
+		model.add(MaxPooling2D(pool_size=(2, 2))) 
+		model.add(Conv2D(128, (3, 3), activation='relu', padding='same')) 
+		model.add(Dropout(0.2)) 
+		model.add(Conv2D(128, (3, 3), activation='relu', padding='same')) 
+		model.add(MaxPooling2D(pool_size=(2, 2))) 
+		model.add(Flatten()) 
+		model.add(Dropout(0.2)) 
+		model.add(Dense(1024, activation='relu', kernel_constraint=maxnorm(1000))) 
+		model.add(Dropout(0.2)) 
+		model.add(Dense(512, activation='relu', kernel_constraint=maxnorm(1000))) 
+		model.add(Dropout(0.2)) 
+		model.add(Dense(num_classes, activation='softmax')) 
+
+		# Compile model 
+		lrate = 0.01 
+		decay = lrate/epochs 
+		sgd = SGD(lr=lrate, momentum=0.9, decay=decay, nesterov=False) 
+		model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['accuracy']) 
+		return model 
 	# -------------------------------------------------------------------------------------------
 	# utils para visulaização do historial de aprendizagem
 	# Só podem ser utilizadas caso se use percentage split na fase de treino.
@@ -282,14 +319,35 @@ class ANN_Keras():
 	# Função que carrega uma imagem para uma matriz, através do nome do ficheiro e da diretoria 
 	# Realiza o resize da imagem para um proporção pré definida e troca os canais 
 	def load_img(self, path, file):
-		img = Image.open(path + str(file))
 		s = self.dims
+		img = Image.open(path + str(file))
+		
+		#plt.imshow(toimage(img)) 
+		#plt.show()
+		'''
+		img1 = resizeimage.resize_cover(img, [250, 250]) # resize
+		img2 = resizeimage.resize_cover(img, [100, 100]) # resize
+		img3 = resizeimage.resize_cover(img, [50, 50]) # resize		
+		_, ax = plt.subplots(2,2, figsize = (12,12))
+		ax[0,0].imshow(toimage(img))
+		ax[0,0].set_title("Original")
+		ax[0,1].imshow(toimage(img1))
+		ax[0,1].set_title("250x250")
+		ax[1,0].imshow(toimage(img2))
+		ax[1,0].set_title("100x100")
+		ax[1,1].imshow(toimage(img3))
+		ax[1,1].set_title("50x50")
+		plt.show()'''
+
+		#img.thumbnail((s, s), Image.ANTIALIAS)
 		img = resizeimage.resize_cover(img, [s, s]) # resize
+		
 		#img = img.convert("RGB")
 		img = np.asarray(img) #, dtype=np.float32) / 255
 		img = img.reshape(3, s, s) 
+
 		#img =  img[:,:,:3]
 		#img = img.transpose(2,0,1)
-
+		
 		return img
 	# -------------------------------------------------------------------------------------------
