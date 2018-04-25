@@ -28,7 +28,7 @@ np.random.seed(seed)
 class ANN_Keras():
 	def __init__(self, path_dref, path_dc, M_data):
 		self.num_classes = 1000  # número de classes
-		self.dims = 50 # dimensão das imagens apos tratamento 
+		self.dims = 250 # dimensão das imagens apos tratamento 
 
 		#M_data = M_data[0:5000]
 		M_dc = M_data[0:10000]
@@ -40,8 +40,8 @@ class ANN_Keras():
 		M_treino = M_data # train whit all images
 
 		random.shuffle(M_dc)
-		p = int(len(M_dc)*1/3)
-		M_teste = M_dc[0:p] # test only whit 1/3 of DC images
+		#p = int(len(M_dc)*1/3)
+		M_teste = M_dc # test only whit 1/3 of DC images
 
 		model = self.treino_progressivo(path_dref, path_dc, M_treino)
 		self.save_ANN_model(model)
@@ -53,7 +53,7 @@ class ANN_Keras():
 		
 		# criar uma topologia da rede 
 		num_classes = self.num_classes
-		epochs = 3 #25 
+		epochs = 5 #25 
 		model = self.create_compile_model_cnn_plus(num_classes,epochs) 
 		print(model.summary()) 
 
@@ -66,7 +66,7 @@ class ANN_Keras():
 			if(it == div-1): end = len(M_data)
 			
 			M_imgs, M_target = self.create_ANN_input(path_dc, M_data[start:end])
-			
+
 			print("--- Fase de Treino " + str(it+1) + " ---")
 			start_time = time.time()
 			self.cnn_simples(model, epochs, M_imgs, M_target)
@@ -115,7 +115,8 @@ class ANN_Keras():
 		# Adaptção dos dados para np array
 		predicted = np.asarray(predicted, dtype=float)
 		esperados = np.asarray(M_target, dtype=float)
-		
+		print(esperados)
+		print(predicted)
 		correct = (predicted == esperados)
 		accuracy = correct.sum() / correct.size
 		#accuracy = sklearn.metrics.accuracy_score(esperados, predicted)
@@ -145,22 +146,17 @@ class ANN_Keras():
 			''' Imagem de treino no folder ./dc '''
 			img_sample = self.load_img(path_dc, M_data[row][1])
 			M_imgs[row] = (img_sample) 
-
-			#''' Imagem de referência no folder ./dr '''
-			# img_target = load_img(path_dref, M_data[row][0])
-			#M_target.append(img_target);
 			
 			M_target[row]= (M_data[row][0])
 			self.progress(row, len(M_data), "Loading " + str(len(M_data)) + " images.")
 		
 		M_target = np.reshape(M_target, (len(M_target), 1))
+
 		if K.image_data_format() == 'channels_last': 
 			M_imgs = M_imgs.transpose(0,2,3,1)
 
 		M_imgs = M_imgs.astype('float32')
-		M_target = M_target.astype('float32')
 		M_imgs = M_imgs / 255.0
-		M_target = M_target / 255.0
 
 		process = psutil.Process(os.getpid())
 		memoryUse = process.memory_info()[0]/2.**20  # memory use in GB...I think
@@ -175,15 +171,15 @@ class ANN_Keras():
 	def cnn_simples(self, model, epochs, train, test):
 
 		X_train = train
-		y_train =  keras.utils.to_categorical(test, self.num_classes)
-	
+		y_train = keras.utils.to_categorical(test, num_classes=self.num_classes)
+
 		history = model.fit(X_train, y_train, 
-							validation_split=0, 
+							validation_split=0.30, 
 							epochs=epochs, 
-							batch_size=100, 
+							batch_size=32, 
 							verbose=1)
 		
-		#self.print_history_accuracy(history)
+		self.print_history_accuracy(history)
 	# -------------------------------------------------------------------------------------------
 
 	# -------------------------------------------------------------------------------------------
