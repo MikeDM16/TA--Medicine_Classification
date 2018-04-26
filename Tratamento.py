@@ -30,13 +30,15 @@ class Tratamento():
 		#M_data = load_dados(file_name, path_dref, path_dc)
 		M_data = self.read_csv_file("Dados_final.csv")
 		
-		#self.Data_Augmentation(path_dref, path_dc, M_data)
-		#M_data = self.adicionar_imgs_DataAugmentation(path_dref, path_dc, M_data)
+		self.Data_Augmentation(path_dref, path_dc, M_data)
+		M_data = self.adicionar_imgs_DataAugmentation(path_dref, path_dc, M_data)
 
 		return M_data
 	# -------------------------------------------------------------------------------------------
 	def adicionar_imgs_DataAugmentation(self, path_dref, path_dc, M_data):
-		path_da = "./DataAugmentation/"
+		#path_da = "./DataAugmentation/"
+		path_da = "./DataAugmentationDC/"
+		#da_imgs = os.listdir(path_da)
 		da_imgs = os.listdir(path_da)
 
 		nome = 7000
@@ -219,11 +221,12 @@ class Tratamento():
 	def Data_Augmentation(self, path_ref, path_dc, M_data):
 		start_time = time.time()
 
-		files = os.listdir(path_ref)
+		#files = os.listdir(path_ref)
+		files = M_data[0:10000]
 		# print("Files found at" + str(path_ref) + ": " + str(len(s)))
 		
-		pathlib.Path("DataAugmentation").mkdir(parents=True, exist_ok=True) 
-		save_to = "./DataAugmentation"
+		pathlib.Path("DataAugmentationDC").mkdir(parents=True, exist_ok=True) 
+		save_to = "./DataAugmentationDC"
 
 		datagen = ImageDataGenerator(
 									rotation_range=40,
@@ -235,32 +238,31 @@ class Tratamento():
 									horizontal_flip=True,
 									fill_mode='nearest')
 		i = 0
-		classe = 1
-		while(i < len(files)):
+		for f in files:
 			text = "Doing 6x Data augmentation of " + str(len(files)) + " images."
 			self.progress(i, len(files), text) 
 
+			classe = f[0]
 			# Load primeira imagem - Front 
-			img = load_img(path_ref + str(files[i])) # Keras function
+			img = load_img(path_dc + str(f[1])) # Keras function
 			img = img_to_array(img) # Keras function
 			img = img.reshape((1,) + img.shape) # Keras function
 			count = 0			
 			for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to, 
 								save_prefix = str(classe), save_format = 'jpeg'):
 				count += 1
-				if(count > 5):	break
+				if(count > 3):	break
 					
 			# Load segunda imagem - Back 
-			img = load_img(path_ref + str(files[i+1])) # Keras function
+			img = load_img(path_dc + str(f[1])) # Keras function
 			img = img_to_array(img) # Keras function
 			img = img.reshape((1,) + img.shape) # Keras function
 			count = 0
 			for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to, 
 								save_prefix = str(classe), save_format = 'jpeg'):
 				count += 1
-				if(count > 5):	break
+				if(count > 3):	break
 
-			classe += 1
 			i+=2; 
 			#print(type(batch))
 			#plt.imshow(array_to_img(batch[0])) 

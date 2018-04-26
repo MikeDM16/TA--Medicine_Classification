@@ -33,20 +33,22 @@ class ANN_Keras():
 		#M_data = M_data[0:5000]
 		M_dc = M_data[0:10000] # imagens de casos normais
 		M_ref = M_data[10000:14000] # imagens referencia
-		M_da = M_data[14000:len(M_data)] # imagens data augmentation 
-		
+		M_da = M_data[14000:25998] # imagens data augmentation 
+		M_daDC = M_data[25998:len(M_data)]
+
 		print(len(M_data))
 		print("Imagens casos normais: " + str(len(M_dc)) + ".")
 		print("Imagens Referência: " + str(len(M_ref)) + ".")
-		print("Imagens via data Augmentation: " + str(len(M_da)) + ".")
+		print("Imagens Dref via data Augmentation: " + str(len(M_da)) + ".")
+		print("Imagens DC via data Augmentation: " + str(len(M_daDC)) + ".")
 
 		# Shuffle the data randomly (keras already allows this doe)
+		random.shuffle(M_data)
 		random.shuffle(M_data)
 
 		M_treino = M_data # train whit all images
 
 		random.shuffle(M_dc)
-		#p = int(len(M_dc)*1/3)
 		M_teste = M_dc # test only DC images
 
 		model = self.treino_progressivo(path_dref, path_dc, M_treino)
@@ -182,6 +184,9 @@ class ANN_Keras():
 							epochs=epochs, 
 							batch_size=10, 
 							verbose=1)
+		
+		# Save model after every train 
+		self.save_ANN_model(model)
 
 		# treino sequencial --> nao dá para testar por epochs
 		#self.print_history_accuracy(history)
