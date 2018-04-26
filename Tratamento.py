@@ -1,8 +1,10 @@
-import csv, os, psutil, time
+import csv, os, psutil, time, sys, pathlib
+import numpy as np
 from matplotlib import pylab
 import matplotlib.pyplot as plt
 from scipy.misc import toimage
 from PIL import Image, ImageColor, ImageTk
+from keras.preprocessing.image import ImageDataGenerator, load_img,  array_to_img, img_to_array
 
 class Tratamento():
 	def tratamento_classes(self, file_name, path_dref, path_dc):
@@ -19,14 +21,61 @@ class Tratamento():
 
 			M_data = self.troca_nomes_ids(ref_classes, M_data)
 			M_data = M_data[1:len(M_data)]
+
+			M_data = self.adicionar_imgs_DataAugmentation(path_dref, path_dc, M_data)
+			
 			return M_data
 
 		# Executar isto só 1 vez. Tendo as imagens preparadas não há necessidade de repetir isto
 		#M_data = load_dados(file_name, path_dref, path_dc)
 		M_data = self.read_csv_file("Dados_final.csv")
 		
+		#self.Data_Augmentation(path_dref, path_dc, M_data)
+		#M_data = self.adicionar_imgs_DataAugmentation(path_dref, path_dc, M_data)
+
 		return M_data
 	# -------------------------------------------------------------------------------------------
+	def adicionar_imgs_DataAugmentation(self, path_dref, path_dc, M_data):
+		path_da = "./DataAugmentation/"
+		da_imgs = os.listdir(path_da)
+
+		nome = 7000
+
+		M_aux = [] 
+		
+		aux = np.zeros((1000))
+
+		i=0;
+		while(i < len(da_imgs)):
+			# abrir img em ./DataAugmentation
+			img = Image.open(path_da +  da_imgs[i])
+			# Copiar img para ./dc com novo nome 
+			new_file_name =  str(nome) + ".jpeg"
+			img.save(path_dc + new_file_name)
+
+			# O nome das imagens teve um bug. 
+			# Para saber a classe precisa desta conta
+			# é mais facil improvisar aqui que perder horas a criar novas imgs
+			classe = int(da_imgs[i].split("_")[0])
+			
+			aux[classe-1] = 1; 
+
+			# Adicionar os novos casos treino à matriz principal
+			M_data.append([str(classe), new_file_name])			
+			M_aux.append([str(classe), new_file_name])			
+			
+			i += 1
+			nome += 1
+
+			text = "Copying " + str(len(da_imgs)) + " Data augmentation images."
+			self.progress(i, len(da_imgs), text) 
+
+		self.save_csv(M_aux, "imgs_dataAugmentation.csv")
+		self.save_csv(M_data, "Dados_final.csv")
+		print(aux.sum())
+		print(i)
+		
+		return M_data
 
 	# -------------------------------------------------------------------------------------------
 	# Cada imagem de referência (target) será adicionada ao folder DC 
@@ -39,9 +88,8 @@ class Tratamento():
 		# As imagens que se coloquem lá têm que começar por 5000.jpg
 		#nome = len(dc_imgs)
 		nome = 5000
-
 		i=0;
-		while(i < len(ref_imgs)-1):
+		while(i < len(ref_imgs)):
 			# abrir img em ./dr
 			img = Image.open(path_dref +  ref_imgs[i])
 			# Copiar img para ./dc com novo nome 
@@ -154,5 +202,71 @@ class Tratamento():
 						falhou += 1
 						f.close()
 			print("Save " + file_name + " terminado. Falhou " + str(falhou) + " linhas.")
+	
+	# -------------------------------------------------------------------------------------------
+	def progress(self, count, total, status=''):
+		bar_len = 50
+		filled_len = int(round(bar_len * count / float(total)))
+
+		percents = round(100.0 * count / float(total), 1)
+		bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+		sys.stdout.write('[%s] %s%s    %s\r' % (bar, percents, '%', status))
+		sys.stdout.flush() 
 	# -------------------------------------------------------------------------------------------
 	
+
+	def Data_Augmentation(self, path_ref, path_dc, M_data):
+		start_time = time.time()
+
+		files = os.listdir(path_ref)
+		# print("Files found at" + str(path_ref) + ": " + str(len(s)))
+		
+		pathlib.Path("DataAugmentation").mkdir(parents=True, exist_ok=True) 
+		save_to = "./DataAugmentation"
+
+		datagen = ImageDataGenerator(
+									rotation_range=40,
+									width_shift_range=0.2,
+									height_shift_range=0.2,
+									rescale=1./255,
+									shear_range=0.2,
+									zoom_range=0.2,
+									horizontal_flip=True,
+									fill_mode='nearest')
+		i = 0
+		classe = 1
+		while(i < len(files)):
+			text = "Doing 6x Data augmentation of " + str(len(files)) + " images."
+			self.progress(i, len(files), text) 
+
+			# Load primeira imagem - Front 
+			img = load_img(path_ref + str(files[i])) # Keras function
+			img = img_to_array(img) # Keras function
+			img = img.reshape((1,) + img.shape) # Keras function
+			count = 0			
+			for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to, 
+								save_prefix = str(classe), save_format = 'jpeg'):
+				count += 1
+				if(count > 5):	break
+					
+			# Load segunda imagem - Back 
+			img = load_img(path_ref + str(files[i+1])) # Keras function
+			img = img_to_array(img) # Keras function
+			img = img.reshape((1,) + img.shape) # Keras function
+			count = 0
+			for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to, 
+								save_prefix = str(classe), save_format = 'jpeg'):
+				count += 1
+				if(count > 5):	break
+
+			classe += 1
+			i+=2; 
+			#print(type(batch))
+			#plt.imshow(array_to_img(batch[0])) 
+			#plt.show()
+			
+			# Create 20 new images per reference image 
+		
+		print("\n")
+		print("Tempo Data Augmentation: " + str( round((time.time() - start_time)/60, 2)) + " minutes")

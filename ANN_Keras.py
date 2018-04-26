@@ -31,8 +31,14 @@ class ANN_Keras():
 		self.dims = 250 # dimensão das imagens apos tratamento 
 
 		#M_data = M_data[0:5000]
-		M_dc = M_data[0:10000]
-		M_ref = M_data[10000:len(M_data)]
+		M_dc = M_data[0:10000] # imagens de casos normais
+		M_ref = M_data[10000:14000] # imagens referencia
+		M_da = M_data[14000:len(M_data)] # imagens data augmentation 
+		
+		print(len(M_data))
+		print("Imagens casos normais: " + str(len(M_dc)) + ".")
+		print("Imagens Referência: " + str(len(M_ref)) + ".")
+		print("Imagens via data Augmentation: " + str(len(M_da)) + ".")
 
 		# Shuffle the data randomly (keras already allows this doe)
 		random.shuffle(M_data)
@@ -41,7 +47,7 @@ class ANN_Keras():
 
 		random.shuffle(M_dc)
 		#p = int(len(M_dc)*1/3)
-		M_teste = M_dc # test only whit 1/3 of DC images
+		M_teste = M_dc # test only DC images
 
 		model = self.treino_progressivo(path_dref, path_dc, M_treino)
 		self.save_ANN_model(model)
@@ -53,11 +59,11 @@ class ANN_Keras():
 		
 		# criar uma topologia da rede 
 		num_classes = self.num_classes
-		epochs = 5 #25 
+		epochs = 30 
 		model = self.create_compile_model_cnn_plus(num_classes,epochs) 
 		print(model.summary()) 
 
-		bloco = len(M_data) # Treinar com bloco de N imagens por fase de treino 
+		bloco = 5000 # Treinar com bloco de N imagens por fase de treino 
 		div = int(len(M_data)/bloco) # quantas vezes é possivel partir o dataset em blocos
 		for it in range(0, div):
 			# if(it==0):	start = 1 # saltar 1º linha com nome colunas 
@@ -115,8 +121,6 @@ class ANN_Keras():
 		# Adaptção dos dados para np array
 		predicted = np.asarray(predicted, dtype=float)
 		esperados = np.asarray(M_target, dtype=float)
-		print(esperados)
-		print(predicted)
 		correct = (predicted == esperados)
 		accuracy = correct.sum() / correct.size
 		#accuracy = sklearn.metrics.accuracy_score(esperados, predicted)
@@ -174,12 +178,13 @@ class ANN_Keras():
 		y_train = keras.utils.to_categorical(test, num_classes=self.num_classes)
 
 		history = model.fit(X_train, y_train, 
-							validation_split=0.30, 
+							validation_split=0, 
 							epochs=epochs, 
-							batch_size=32, 
+							batch_size=10, 
 							verbose=1)
-		
-		self.print_history_accuracy(history)
+
+		# treino sequencial --> nao dá para testar por epochs
+		#self.print_history_accuracy(history)
 	# -------------------------------------------------------------------------------------------
 
 	# -------------------------------------------------------------------------------------------
@@ -244,7 +249,7 @@ class ANN_Keras():
 		model.add(Dropout(0.2)) 
 		model.add(Dense(512, activation='relu', kernel_constraint=maxnorm(1000))) 
 		model.add(Dropout(0.2)) 
-		model.add(Dense(num_classes, activation='softmax')) 
+		model.add(Dense(num_classes, activation='linear')) 
 
 		# Compile model 
 		lrate = 0.01 
@@ -335,10 +340,8 @@ class ANN_Keras():
 		ax[1,1].set_title("50x50")
 		plt.show()'''
 
-		#img.thumbnail((s, s), Image.ANTIALIAS)
 		img = resizeimage.resize_cover(img, [s, s]) # resize
 		
-		#img = img.convert("RGB")
 		img = np.asarray(img) #, dtype=np.float32) / 255
 		img = img.reshape(3, s, s) 
 
