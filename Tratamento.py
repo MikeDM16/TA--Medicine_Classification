@@ -238,21 +238,29 @@ class Tratamento():
 									horizontal_flip=True,
 									fill_mode='nearest')
 		i = 0
+
+		# Array para saber quais as imagens já processadas, para não repetir
+		feitos = np.zeros((5000,), dtype="uint8")
+
 		for f in files:
 			text = "Doing 6x Data augmentation of " + str(len(files)) + " images."
 			self.progress(i, len(files), text) 
 
-			classe = f[0]
-			# Load primeira imagem - Front 
-			img = load_img(path_dc + str(f[1])) # Keras function
-			img = img_to_array(img) # Keras function
-			img = img.reshape((1,) + img.shape) # Keras function
-			count = 0			
-			for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to, 
-								save_prefix = str(classe), save_format = 'jpeg'):
-				count += 1
-				if(count > 3):	break
-					
+			numero_dc = int(f[1].split(".")[0])
+			if(feitos[numero_dc] == 0):
+				classe = f[0]
+				# Load primeira imagem - Front 
+				img = load_img(path_dc + str(f[1])) # Keras function
+				img = img_to_array(img) # Keras function
+				img = img.reshape((1,) + img.shape) # Keras function
+				count = 0			
+				for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to, 
+									save_prefix = str(classe), save_format = 'jpeg'):
+					count += 1
+					if(count < 5):	break
+				feitos[numero_dc] = 1
+			
+			'''	
 			# Load segunda imagem - Back 
 			img = load_img(path_dc + str(f[1])) # Keras function
 			img = img_to_array(img) # Keras function
@@ -262,8 +270,8 @@ class Tratamento():
 								save_prefix = str(classe), save_format = 'jpeg'):
 				count += 1
 				if(count > 3):	break
-
 			i+=2; 
+			'''
 			#print(type(batch))
 			#plt.imshow(array_to_img(batch[0])) 
 			#plt.show()
