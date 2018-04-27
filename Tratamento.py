@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from scipy.misc import toimage
 from PIL import Image, ImageColor, ImageTk
 from keras.preprocessing.image import ImageDataGenerator, load_img,  array_to_img, img_to_array
+from joblib import Parallel, delayed
+from blessings import Terminal
 
 class Tratamento():
 	def tratamento_classes(self, file_name, path_dref, path_dc):
@@ -30,8 +32,8 @@ class Tratamento():
 		#M_data = load_dados(file_name, path_dref, path_dc)
 		M_data = self.read_csv_file("Dados_final.csv")
 		
-		self.Data_Augmentation(path_dref, path_dc, M_data)
-		M_data = self.adicionar_imgs_DataAugmentation(path_dref, path_dc, M_data)
+		#self.Data_Augmentation(path_dref, path_dc, M_data)
+		#M_data = self.adicionar_imgs_DataAugmentation(path_dref, path_dc, M_data)
 
 		return M_data
 	# -------------------------------------------------------------------------------------------
@@ -216,67 +218,81 @@ class Tratamento():
 		sys.stdout.write('[%s] %s%s    %s\r' % (bar, percents, '%', status))
 		sys.stdout.flush() 
 	# -------------------------------------------------------------------------------------------
-	
+	def progress_pid(self, pid, procs, count, total, status=''):
+		bar_len = 50
+		filled_len = int(round(bar_len * count / float(total)))
 
+		percents = round(100.0 * count / float(total), 1)
+		bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+		term = Terminal()
+		with term.location(6, term.height - (procs+1-pid)):
+			print('[%s] %s%s    %s\r' % (bar, percents, '%', status), end='')
+	# -------------------------------------------------------------------------------------------
+	def data_augm_thread(self, path_dc, files, datagen, start, end, pid, procs):
+		save_to = "./DataAugmentationDC"
+		text = "From " + str(start) + " to " + str(end) + "."
+
+		for row in range(start, end):
+			f = files[row]
+			classe = f[0]
+
+			self.progress_pid(pid, procs, row-start, end-start, text) 
+
+			# Load primeira imagem - Front 
+			img = load_img(path_dc + str(f[1])) # Keras function
+			img = img_to_array(img) # Keras function
+			img = img.reshape((1,) + img.shape) # Keras function
+			
+			count = 0
+			for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to,
+							 		  save_prefix = str(classe), save_format = 'jpeg'):
+				if count > 3: break
+				else: count += 1 
+
+	# -------------------------------------------------------------------------------------------
 	def Data_Augmentation(self, path_ref, path_dc, M_data):
 		start_time = time.time()
 
 		#files = os.listdir(path_ref)
 		files = M_data[0:10000]
+		feitos = np.zeros((5000,), dtype="uint8")
+		files_non_rep = []
 		# print("Files found at" + str(path_ref) + ": " + str(len(s)))
 		
 		pathlib.Path("DataAugmentationDC").mkdir(parents=True, exist_ok=True) 
 		save_to = "./DataAugmentationDC"
 
-		datagen = ImageDataGenerator(
-									rotation_range=40,
-									width_shift_range=0.2,
-									height_shift_range=0.2,
-									rescale=1./255,
-									shear_range=0.2,
-									zoom_range=0.2,
-									horizontal_flip=True,
-									fill_mode='nearest')
+		datagen = ImageDataGenerator(rotation_range=40,
+									 width_shift_range=0.2,
+									 height_shift_range=0.2,
+									 rescale=1./255,
+									 shear_range=0.2,
+									 zoom_range=0.2,
+									 horizontal_flip=True,
+									 fill_mode='nearest')
 		i = 0
 
-		# Array para saber quais as imagens já processadas, para não repetir
-		feitos = np.zeros((5000,), dtype="uint8")
-
+		# retira repetidos
 		for f in files:
-			text = "Doing 6x Data augmentation of " + str(len(files)) + " images."
-			self.progress(i, len(files), text) 
-
 			numero_dc = int(f[1].split(".")[0])
 			if(feitos[numero_dc] == 0):
-				classe = f[0]
-				# Load primeira imagem - Front 
-				img = load_img(path_dc + str(f[1])) # Keras function
-				img = img_to_array(img) # Keras function
-				img = img.reshape((1,) + img.shape) # Keras function
-				count = 0			
-				for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to, 
-									save_prefix = str(classe), save_format = 'jpeg'):
-					count += 1
-					if(count < 5):	break
+				files_non_rep.append(f)
 				feitos[numero_dc] = 1
-			
-			'''	
-			# Load segunda imagem - Back 
-			img = load_img(path_dc + str(f[1])) # Keras function
-			img = img_to_array(img) # Keras function
-			img = img.reshape((1,) + img.shape) # Keras function
-			count = 0
-			for batch in datagen.flow(img, batch_size = 1, save_to_dir=save_to, 
-								save_prefix = str(classe), save_format = 'jpeg'):
-				count += 1
-				if(count > 3):	break
-			i+=2; 
-			'''
-			#print(type(batch))
-			#plt.imshow(array_to_img(batch[0])) 
-			#plt.show()
-			
-			# Create 20 new images per reference image 
+
+		procs = 8
+		total_imgs = len(files_non_rep)
+		step_imgs = total_imgs//procs
+
+		print("Doing 6x Data augmentation of " + str(total_imgs) + " images.")
+ 
+		# progress bars
+		for i in range(0,procs):
+			print("pid " + str(i))
+
+		results = Parallel(n_jobs=procs,backend="threading")\
+				  (delayed(self.data_augm_thread)(path_dc, files_non_rep, datagen, p*step_imgs, (p+1)*step_imgs, p, procs)
+				  for p in range(0,procs))
 		
 		print("\n")
-		print("Tempo Data Augmentation: " + str( round((time.time() - start_time)/60, 2)) + " minutes")
+		print("Tempo Data Augmentation: " + str(round((time.time() - start_time)/60, 2)) + " minutes")

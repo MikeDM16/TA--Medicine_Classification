@@ -21,6 +21,9 @@ from scipy.misc import toimage
 from PIL import Image, ImageColor, ImageTk
 from resizeimage import resizeimage
 
+from joblib import Parallel, delayed
+from blessings import Terminal
+
 # fixar random seed para se puder reproduzir os resultados 
 seed = 9 
 np.random.seed(seed) 
@@ -96,7 +99,17 @@ class ANN_Keras():
 
 		sys.stdout.write('[%s] %s%s    %s\r' % (bar, percents, '%', status))
 		sys.stdout.flush() 
+	# -------------------------------------------------------------------------------------------
+	def progress_pid(self, pid, procs, count, total, status=''):
+		bar_len = 50
+		filled_len = int(round(bar_len * count / float(total)))
 
+		percents = round(100.0 * count / float(total), 1)
+		bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+		term = Terminal()
+		with term.location(6, term.height - (procs+1-pid)):
+			print('[%s] %s%s    %s\r' % (bar, percents, '%', status), end='')
 	# -------------------------------------------------------------------------------------------
 	def avaliacao(self, model, path_dc, M_data):
 	
@@ -132,7 +145,16 @@ class ANN_Keras():
 		print("Predicted - MSE: " + str(mse))
 		print("Predicted - acc: " + str(accuracy))
 	# -------------------------------------------------------------------------------------------
+	def load_imgs_thread(self, path_dc, M_data, start, end, pid, procs):
+		dims = self.dims
+		result = np.zeros((end-start, 3, dims, dims), dtype='uint8')
+		text = "From " + str(start) + " to " + str(end) + "."
 
+		for row in range(start, end):
+			result[row-start] = self.load_img(path_dc, M_data[row][1])
+			self.progress_pid(pid, procs, row-start, end-start, text)
+
+		return result
 	# -------------------------------------------------------------------------------------------
 	def create_ANN_input(self, path_dc, M_data):
 		start_time = time.time()
@@ -146,16 +168,26 @@ class ANN_Keras():
 		M_imgs = np.zeros((d1, 3, dims, dims), dtype='uint8')
 		M_target = np.zeros((d1,), dtype='uint8')
 		
-		# Load das imagens efetivamente para memória, na forma de matriz e 
-		# com resize, para ocupar menos memória 
-		for row in range(0, len(M_data)): 
-			''' Imagem de treino no folder ./dc '''
-			img_sample = self.load_img(path_dc, M_data[row][1])
-			M_imgs[row] = (img_sample) 
-			
-			M_target[row]= (M_data[row][0])
-			self.progress(row, len(M_data), "Loading " + str(len(M_data)) + " images.")
+		procs = 8
+		total_imgs = d1
+		step_imgs = total_imgs//procs
+
+		print("Loading " + str(total_imgs) + " images.")
 		
+		# progress bars
+		for i in range(0,procs):
+			print("pid " + str(i))
+
+		results = Parallel(n_jobs=procs,backend="threading")\
+				  (delayed(self.load_imgs_thread)(path_dc, M_data, p*step_imgs, (p+1)*step_imgs, p, procs)
+				  for p in range(0,procs))
+		
+		for p in range(0,procs):
+			M_imgs[p*step_imgs:(p+1)*step_imgs] = results[p]
+
+		for row in range(0, len(M_data)):
+			M_target[row] = (M_data[row][0])
+
 		M_target = np.reshape(M_target, (len(M_target), 1))
 
 		if K.image_data_format() == 'channels_last': 
@@ -168,7 +200,7 @@ class ANN_Keras():
 		memoryUse = process.memory_info()[0]/2.**20  # memory use in GB...I think
 		print("\nImages loaded: " + str(len(M_imgs)) + ".")
 		print('Memory at use: ' +  str(round(memoryUse, 2)) + " MB.")
-		print("Tempo Load imagens: " + str( round((time.time() - start_time)/60, 2)) + " minutes")
+		print("Tempo Load images: " + str( round((time.time() - start_time)/60, 2)) + " minutes")
 		print("-------------------------\n")
 		return(M_imgs, M_target)
 	# -------------------------------------------------------------------------------------------
