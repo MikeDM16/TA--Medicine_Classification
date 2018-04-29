@@ -152,7 +152,7 @@ class ANN_Keras():
 
 		for row in range(start, end):
 			result[row-start] = self.load_img(path_dc, M_data[row][1])
-			self.progress_pid(pid, procs, row-start, end-start, text)
+			self.progress_pid(pid, procs, row-start, end-start-1, text)
 
 		return result
 	# -------------------------------------------------------------------------------------------
@@ -182,6 +182,9 @@ class ANN_Keras():
 				  (delayed(self.load_imgs_thread)(path_dc, M_data, p*step_imgs, (p+1)*step_imgs, p, procs)
 				  for p in range(0,procs))
 		
+		with term.location(0, term.height - 1):
+			print('')
+
 		for p in range(0,procs):
 			M_imgs[p*step_imgs:(p+1)*step_imgs] = results[p]
 

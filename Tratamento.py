@@ -48,8 +48,9 @@ class Tratamento():
 			return M_data
 
 		# Executar isto só 1 vez. Tendo as imagens preparadas não há necessidade de repetir isto
-		M_data = load_dados(file_name, path_dref, path_dc)
-		#M_data = self.read_csv_file("Dados_final.csv")
+		#M_data = load_dados(file_name, path_dref, path_dc)
+		M_data = self.read_csv_file("Dados_final.csv")
+		#M_data = self.adicionar_imgs_DataAugmentationDRef(path_dref, path_dc, M_data)
 
 		return M_data
 	# -------------------------------------------------------------------------------------------
@@ -340,9 +341,9 @@ class Tratamento():
 		# retira repetidos
 		for f in files:
 			# Saber qual a classe atribuida à imagem de referencia a processar
-			nome_file = int(f.split(".")[0])
+			nome_file = f
 			index = ref_names.index(nome_classes)
-			classe = classes[index]
+			classe = classes[i ndex]
 
 			# Load primeira imagem - Front 
 			img = load_img(path_dref + str(f)) # Keras function
@@ -366,7 +367,7 @@ class Tratamento():
 		dref_imgs = os.listdir(path_da)
 
 		''' Colocar aqui o tamanho da pasta dc ! '''
-		nome = (-1) 
+		nome = (7000+24962) 
 		M_aux = [] 		
 
 		i=0;
